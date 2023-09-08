@@ -1,0 +1,137 @@
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ __('Dashboard') }}
+        </h2>
+    </x-slot>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-6 text-gray-900 dark:text-gray-100">
+                <script src="./js/docxtemplater.js"></script>
+                <script src="./js/pizzip.js"></script>
+                <script src="./js/FileSaver.js"></script>
+                <script src="./js/pizzip-utils.js"></script>
+                <script src="./js/exceljs.min.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/docx-merger@1.2.2/dist/docx-merger.min.js"></script>
+                <script src="./js/jszip.js" ></script>
+
+                <input type="file" id="docx" />
+                <input type="file"  id="excel">
+                <input id="checkbox" type="checkbox">
+
+                <button onclick="parseExcelFile2()">Generate document</button>
+                <script id="test">
+                    </script>
+
+                <script>
+                    const docx = document.getElementById("docx");
+                    const excel = document.getElementById("excel");
+                    var index = 0;
+                    const zip2 = new JSZip();
+
+                    function parseExcelFile2(inputElement=excel) {
+                        var files = inputElement.files || [];
+                        if (!files.length) return;
+                        var file = files[0];
+
+                        console.time();
+                        
+                        var reader = new FileReader();
+                        reader.onloadend = function(event) {
+                            var arrayBuffer = reader.result;
+                            var workbook = new ExcelJS.Workbook();
+
+                            // workbook.xlsx.read(buffer)
+                            workbook.xlsx.load(arrayBuffer).then(function(workbook) {
+                                console.timeEnd();
+                                var result = ''
+                                var docs = [];
+                                
+                                workbook.worksheets.forEach(function (sheet) {
+                                    var names = [];
+                                    var values = [];
+
+                                    for(let j=0; j<sheet._rows[0]._cells.length; j++){
+                                        names[j] = sheet._rows[0]._cells[j].value;
+                                    }
+                                    for(let i=1; i<sheet._rows.length; i++){
+                                        values = [];
+                                        for(let j=0; j<sheet._rows[i]._cells.length; j++){
+                                            if(typeof sheet._rows[i]._cells[j].value === 'object' && sheet._rows[i]._cells[j].value !== null)
+                                                values.push([names[j],sheet._rows[i]._cells[j].value.result])
+                                            else
+                                                values.push([names[j],sheet._rows[i]._cells[j].value])
+                                               
+                                        }
+                                        
+                                        values = Object.fromEntries(values);
+                                        console.log(values);
+
+                                        generate(values, false, i);
+                                    } 
+                                    generate(values, true);
+                                });
+                            });
+
+                        };
+                        reader.readAsArrayBuffer(file);
+                    }
+
+                    function generate(values, final, i=0) {
+                        const reader = new FileReader();
+                    
+                        if (docx.files.length === 0) {
+                            alert("No files selected");
+                        } 
+                        reader.readAsBinaryString(docx.files.item(0));
+
+                        reader.onerror = function (evt) {
+                            console.log("error reading file", evt);
+                            alert("error reading file" + evt);
+                        };
+                        reader.onload = function (evt) {
+                            const content = evt.target.result;
+
+                            const zip = new PizZip(content);
+                            const doc = new window.docxtemplater(zip, {
+                                paragraphLoop: true,
+                                linebreaks: true,
+                            });
+
+                            // Render the document (Replace {first_name} by John, {last_name} by Doe, ...)
+                            doc.render(values);
+                            const blob = doc.getZip().generate({
+                                type: "blob",
+                                mimeType:
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                // compression: DEFLATE adds a compression step.
+                                // For a 50MB output document, expect 500ms additional CPU time
+                                compression: "DEFLATE",
+                            });
+                            // Output the document using Data-URI
+                            if(final == true){
+                                zip2.generateAsync({type:"blob"}).then(function(content) {
+                                        saveAs(content, "example.zip");
+                                    });
+                            }
+                            else{
+                                const entries = Object.entries(values);
+                                console.log(entries)
+                                if(document.getElementById('checkbox').checked)
+                                    zip2.file(entries[0][1]+".docx",  blob);
+                                else
+                                    zip2.file("output"+i+".docx",  blob);
+                            }
+                            //saveAs(blob, "output.docx");
+                        };
+
+                    }
+
+                </script>
+                </div>
+            </div>
+        </div>
+    </div>
+</x-app-layout>
